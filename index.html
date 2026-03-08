@@ -771,6 +771,17 @@ async function runExtraction() {
     document.getElementById('extract-progress').textContent = 'Video is not ready yet.';
     return;
   }
+
+  // Pre-check: cross-origin video cannot be drawn to canvas (browser security)
+  try {
+    const videoOrigin = new URL(videoEl.src).origin;
+    if (videoOrigin !== window.location.origin) {
+      document.getElementById('extract-progress').textContent =
+        'Frame extraction is not available for remotely hosted videos. Use the local viewer.html instead.';
+      return;
+    }
+  } catch (e) { /* relative URL — same origin, continue */ }
+
   isExtracting = true;
 
   const vr       = videoRows.find(v => v.basename === currentBasename);
@@ -793,29 +804,12 @@ async function runExtraction() {
     return;
   }
 
-  // Probe first frame using main video — fast check for SecurityError
-  // (GitHub Releases lacks CORS headers, so toDataURL() would throw immediately)
+  // Pause main video during extraction, restore afterward
   const wasPaused = videoEl.paused;
   if (!wasPaused) videoEl.pause();
   const savedTime = videoEl.currentTime;
 
-  try {
-    await captureFrame(videoEl, items[0].t);
-  } catch (e) {
-    // Restore playback state
-    videoEl.currentTime = savedTime;
-    if (!wasPaused) videoEl.play().catch(() => {});
-    isExtracting = false;
-    if (e instanceof DOMException && e.name === 'SecurityError') {
-      progress.textContent =
-        'Frame extraction is not available: the video host does not allow cross-origin canvas access.';
-    } else {
-      progress.textContent = `Error: ${e.message}`;
-    }
-    return;
-  }
-
-  // CORS is available — proceed with full extraction using main video
+  // CORS is available (same origin) — proceed with full extraction using main video
   grid.innerHTML = '';
   extractedFrames  = [];
   extractionAbort  = false;
