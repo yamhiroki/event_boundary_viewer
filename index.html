@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event Segmentation Viewer (Web)</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: Arial, sans-serif;
+  background: #111827;
+  color: #d1d5db;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #1f2937;
+  border-bottom: 1px solid #374151;
+  flex-shrink: 0;
+}
+header h1 { font-size: 1em; font-weight: bold; color: #f9fafb; white-space: nowrap; }
+.btn {
+  padding: 5px 12px;
+  border: 1px solid #6b7280;
+  background: transparent;
+  color: #9ca3af;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.btn:hover  { border-color: #38bdf8; color: #38bdf8; }
+.btn.loaded { border-color: #38bdf8; color: #38bdf8; }
+#meta { margin-left: auto; font-size: 0.78em; color: #6b7280; white-space: nowrap; }
+
+/* ── Tab bar ── */
+#tab-bar {
+  display: flex;
+  background: #1f2937;
+  border-bottom: 1px solid #374151;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+.tab-btn {
+  padding: 7px 16px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.85em;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.tab-btn:hover  { color: #d1d5db; }
+.tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+
+/* ── Tab panels ── */
+.tab-panel {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+.tab-panel.active { display: flex; }
+
+/* ══════════════════════════════════
+   Tab 1 — Viewer
+══════════════════════════════════ */
+/* ── Timeline panel ── */
+#timeline-panel {
+  flex: 0 0 auto;
+  max-height: 44vh;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid #374151;
+  background: #0f172a;
+  overflow: hidden;
+}
+#timeline-header {
+  padding: 8px 16px 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #1e293b;
+}
+#timeline-header h2 { font-size: 0.75em; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; }
+.legend       { display: flex; gap: 14px; }
+.legend-item  { display: flex; align-items: center; gap: 5px; font-size: 0.78em; color: #9ca3af; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 1px; }
+#timeline-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
+#timeline-svg    { display: block; }
+
+/* ── Video panel ── */
+#video-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #030712;
+  overflow: hidden;
+  min-height: 0;
+}
+#video-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+#video {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  background: #000;
+}
+#overlay { position: absolute; pointer-events: none; }
+#video-footer {
+  padding: 6px 16px;
+  flex-shrink: 0;
+  background: #1f2937;
+  border-top: 1px solid #374151;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 36px;
+}
+#video-filename  { color: #9ca3af; font-size: 0.82em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#boundary-counts { font-size: 0.78em; white-space: nowrap; }
+.fine-count      { color: #38bdf8; }
+.coarse-count    { color: #f97316; font-weight: bold; }
+#video-status    { font-size: 0.78em; color: #6b7280; margin-left: auto; }
+
+/* ── Empty state ── */
+#empty-state {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 6px; color: #374151; pointer-events: none;
+}
+#empty-state .step { font-size: 0.85em; }
+
+/* ── Loading overlay ── */
+#video-loading {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5);
+  flex-direction: column;
+  gap: 12px;
+  color: #9ca3af;
+  font-size: 0.9em;
+}
+#video-loading.active { display: flex; }
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid #374151;
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SVG timeline elements ── */
+.row-bg      { cursor: pointer; }
+.row-bg:hover { fill: rgba(255,255,255,0.04); }
+.row-bg.active { fill: rgba(56,189,248,0.06); }
+.row-label   { font-size: 10.5px; font-family: Arial, sans-serif; fill: #6b7280; cursor: pointer; }
+.row-label.active { fill: #38bdf8; }
+.axis-label  { font-size: 9px; font-family: Arial, sans-serif; fill: #374151; }
+.grid-line   { stroke: #1e293b; stroke-width: 0.5; }
+.fine-tick   { stroke: #38bdf8; stroke-width: 1.8; stroke-linecap: round; }
+.coarse-tick { stroke: #f97316; stroke-width: 2.5; stroke-linecap: round; }
+.prac-tick   { stroke: #374151; stroke-width: 1.5; stroke-linecap: round; }
+.playhead    { stroke: #f87171; stroke-width: 1.5; stroke-dasharray: 3,2; pointer-events: none; }
+.seek-zone   { cursor: pointer; fill: transparent; }
+
+/* ══════════════════════════════════
+   Tab 2 — Frames
+══════════════════════════════════ */
+#frames-toolbar {
+  padding: 10px 16px;
+  background: #1f2937;
+  border-bottom: 1px solid #374151;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+#frames-video-name { color: #9ca3af; font-size: 0.85em; }
+#extract-progress  { color: #6b7280; font-size: 0.78em; margin-left: auto; }
+#frames-scroll     { flex: 1; overflow-y: auto; padding: 16px; }
+#frames-grid       { display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; }
+#frames-empty      { color: #4b5563; font-size: 0.85em; padding: 24px 0; }
+
+.frame-card {
+  width: 200px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: #1f2937;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  flex-shrink: 0;
+}
+.frame-card:hover { transform: scale(1.03); box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+.frame-card.fine     { border-color: #38bdf8; }
+.frame-card.coarse   { border-color: #f97316; }
+.frame-card.practice { border-color: #374151; }
+
+.frame-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background-color: #0f172a;
+  background-size: cover;
+  background-position: center;
+}
+.frame-thumb.loading {
+  background-image: repeating-linear-gradient(
+    90deg, #1e293b 0px, #1e293b 40px, #0f172a 40px, #0f172a 80px
+  );
+  animation: shimmer 1.2s infinite linear;
+  background-size: 160px 100%;
+}
+@keyframes shimmer {
+  from { background-position-x: 0; }
+  to   { background-position-x: 160px; }
+}
+.frame-label {
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gran-badge { font-size: 0.7em; padding: 1px 6px; border-radius: 3px; font-weight: bold; }
+.gran-badge.fine     { background: #0c4a6e; color: #38bdf8; }
+.gran-badge.coarse   { background: #7c2d12; color: #fed7aa; }
+.gran-badge.practice { background: #374151; color: #9ca3af; }
+.frame-time { font-size: 0.78em; color: #9ca3af; font-family: monospace; }
+/* sort toggle */
+#sort-btns { display: flex; gap: 2px; }
+.sort-btn {
+  padding: 3px 10px;
+  border: 1px solid #374151;
+  background: transparent;
+  color: #6b7280;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.78em;
+  transition: all 0.15s;
+}
+.sort-btn:hover  { border-color: #38bdf8; color: #38bdf8; }
+.sort-btn.active { background: #f97316; border-color: #38bdf8; color: #38bdf8; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Event Segmentation Viewer</h1>
+  <button class="btn" id="btn-csv">Open CSV</button>
+  <input type="file" id="csv-input" accept=".csv" style="display:none">
+  <span id="meta"></span>
+</header>
+
+<!-- Tab bar -->
+<nav id="tab-bar">
+  <button class="tab-btn active" data-tab="viewer">▶ Viewer</button>
+  <button class="tab-btn"        data-tab="frames">⬛ Frames</button>
+</nav>
+
+<!-- Tab 1: Viewer -->
+<div id="tab-viewer" class="tab-panel active">
+  <!-- Timeline -->
+  <div id="timeline-panel">
+    <div id="timeline-header">
+      <h2>Timeline</h2>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#38bdf8"></div>Fine</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#f97316"></div>Coarse</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#374151"></div>Practice</div>
+      </div>
+    </div>
+    <div id="timeline-scroll"><svg id="timeline-svg"></svg></div>
+  </div>
+
+  <!-- Video -->
+  <div id="video-panel">
+    <div id="video-wrap">
+      <div id="empty-state">
+        <div style="font-size:2em;">▶</div>
+        <div class="step">① Open CSV — videos load automatically</div>
+      </div>
+      <video id="video" controls preload="metadata"></video>
+      <canvas id="overlay"></canvas>
+      <div id="video-loading">
+        <div class="spinner"></div>
+        <span id="loading-label">Loading video…</span>
+      </div>
+    </div>
+    <div id="video-footer">
+      <span id="video-filename">—</span>
+      <span id="boundary-counts"></span>
+      <span id="video-status"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Tab 2: Frames -->
+<div id="tab-frames" class="tab-panel">
+  <div id="frames-toolbar">
+    <span id="frames-video-name">—</span>
+    <button class="btn" id="btn-extract">Extract Frames</button>
+    <div id="sort-btns">
+      <button class="sort-btn active" data-sort="time">Time</button>
+      <button class="sort-btn"        data-sort="gran">Coarse → Fine</button>
+    </div>
+    <span id="extract-progress"></span>
+  </div>
+  <div id="frames-scroll">
+    <div id="frames-grid">
+      <div id="frames-empty">Open a CSV, then click "Extract Frames".</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// VIDEO BASE URL — set this to where your videos are hosted
+// e.g. 'https://username.github.io/repo-name/resources/'
+// or a relative path like '../resources/' if HTML and videos
+// are served from the same GitHub Pages site.
+// ═══════════════════════════════════════════════════════
+const VIDEO_BASE_URL =
+  'https://github.com/yamhiroki/event_boundary_viewer/releases/download/v1.0/';
+
+// ═══════════════════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════════════════
+const FLASH_DUR    = 0.40;
+const FLASH_LEAD   = 0.05;
+const FINE_RGB     = '56,189,248';
+const COARSE_RGB   = '249,115,22';
+const FINE_ALPHA   = 0.60;
+const COARSE_ALPHA = 0.80;
+const BAR_H_FRAC   = 0.065;
+
+const TL_LABEL_W  = 175;
+const TL_PAD_R    = 20;
+const TL_ROW_H    = 34;
+const TL_AXIS_H   = 24;
+const TICK_FINE   = 13;
+const TICK_COARSE = 18;
+const TICK_PRAC   = 9;
+
+const THUMB_W = 320;
+const THUMB_H = 180;
+
+// ═══════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════
+let videoRows       = [];
+let currentBasename = '';
+let participant     = '';
+let orderParam      = '';
+let animFrameId     = null;
+let tlMaxT          = 60;
+let extractionAbort = false;
+let isExtracting    = false;
+let extractedFrames = [];
+let framesSortMode  = 'time';
+let videoReady      = false;   // true once current video has loadeddata
+
+// ═══════════════════════════════════════════════════════
+// DOM refs
+// ═══════════════════════════════════════════════════════
+const csvInput    = document.getElementById('csv-input');
+const videoEl     = document.getElementById('video');
+const overlayEl   = document.getElementById('overlay');
+const tlSvg       = document.getElementById('timeline-svg');
+const tlScroll    = document.getElementById('timeline-scroll');
+const metaEl      = document.getElementById('meta');
+const loadingDiv  = document.getElementById('video-loading');
+const loadingLbl  = document.getElementById('loading-label');
+const ctx         = overlayEl.getContext('2d');
+
+// ═══════════════════════════════════════════════════════
+// Tab switching
+// ═══════════════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'viewer') {
+      syncOverlay();
+      renderTimeline();
+    }
+    if (btn.dataset.tab === 'frames') {
+      updateFramesToolbar();
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// CSV parsing
+// ═══════════════════════════════════════════════════════
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  if (lines.length < 2) return [];
+  const headers = splitCSVLine(lines[0]);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const fields = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h, j) => { obj[h.trim()] = (fields[j] || '').trim(); });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function splitCSVLine(line) {
+  const fields = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; continue; }
+    if (ch === ',' && !inQ) { fields.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  fields.push(cur);
+  return fields;
+}
+
+function deriveGranularity(pass, order) {
+  const p = parseInt(pass, 10);
+  if (isNaN(p)) return '';
+  if (order === 'FC') return p === 0 ? 'fine' : 'coarse';
+  if (order === 'CF') return p === 0 ? 'coarse' : 'fine';
+  return '';
+}
+
+function extractBoundaries(rows) {
+  const map = {};
+  for (const row of rows) {
+    if ((row['dataType'] || '').trim() !== 'segment') continue;
+    const vf   = (row['VideoFile'] || row['videoFile'] || '').trim();
+    const base = vf.replace(/\\/g, '/').split('/').pop();
+    if (!base) continue;
+
+    const t = parseFloat(row['SegmentTime'] || row['segmentTime'] || '');
+    if (isNaN(t)) continue;
+
+    let gran = (row['granularity'] || '').trim();
+    if (!gran) gran = deriveGranularity(row['pass'], row['order']);
+
+    const trialType  = (row['trialType'] || '').trim();
+    const playOrder  = parseInt(row['videoPlayOrder'] || '0', 10);
+    const isPractice = trialType === 'practice';
+
+    if (!map[base]) {
+      map[base] = { basename: base, label: base.replace(/\.[^.]+$/, ''),
+                    playOrder, trialType, fine: [], coarse: [], prac: [] };
+    }
+    if (isPractice)             map[base].prac.push(t);
+    else if (gran === 'fine')   map[base].fine.push(t);
+    else if (gran === 'coarse') map[base].coarse.push(t);
+  }
+
+  return Object.values(map).sort((a, b) => {
+    const ap = a.trialType === 'practice', bp = b.trialType === 'practice';
+    if (ap !== bp) return ap ? 1 : -1;
+    return (a.playOrder || 0) - (b.playOrder || 0);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// Video loading from URL
+// ═══════════════════════════════════════════════════════
+function loadVideo(basename) {
+  if (!basename) return;
+  currentBasename = basename;
+  videoReady = false;
+  isExtracting = false;
+  extractedFrames = [];
+
+  const url = VIDEO_BASE_URL + basename;
+  loadingDiv.classList.add('active');
+  loadingLbl.textContent = `Loading ${basename}…`;
+  document.getElementById('empty-state').style.display = 'none';
+
+  // Setting src triggers load; crossorigin attr is already on the element
+  videoEl.src = url;
+  videoEl.load();
+
+  renderTimeline();
+  updateFooter();
+  updateFramesToolbar();
+}
+
+// ═══════════════════════════════════════════════════════
+// Timeline
+// ═══════════════════════════════════════════════════════
+function renderTimeline() {
+  if (!videoRows.length) return;
+
+  const panelW = tlScroll.clientWidth || 400;
+  const svgW   = panelW - 4;
+  const plotW  = svgW - TL_LABEL_W - TL_PAD_R;
+
+  let maxT = 10;
+  for (const vr of videoRows) {
+    const all = [...vr.fine, ...vr.coarse, ...vr.prac];
+    if (all.length) maxT = Math.max(maxT, ...all);
+  }
+  maxT   = Math.ceil(maxT / 10) * 10 + 10;
+  tlMaxT = maxT;
+
+  const svgH = videoRows.length * TL_ROW_H + TL_AXIS_H;
+  tlSvg.setAttribute('width',   svgW);
+  tlSvg.setAttribute('height',  svgH);
+  tlSvg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+  tlSvg.innerHTML = '';
+
+  const toX = t => TL_LABEL_W + (t / maxT) * plotW;
+
+  const step = maxT <= 90 ? 10 : maxT <= 240 ? 30 : 60;
+  for (let t = 0; t <= maxT; t += step) {
+    const x = toX(t);
+    svg('line', { x1:x, y1:0, x2:x, y2:svgH-TL_AXIS_H, class:'grid-line' });
+    svg('text', { x, y:svgH-6, 'text-anchor':'middle', class:'axis-label' }, `${t}s`);
+  }
+
+  videoRows.forEach((vr, i) => {
+    const y   = i * TL_ROW_H;
+    const mid = y + TL_ROW_H / 2;
+    const isAct = vr.basename === currentBasename;
+
+    const rowBg = svg('rect', { x:0, y, width:svgW, height:TL_ROW_H,
+                  class:`row-bg${isAct ? ' active' : ''}` });
+    rowBg.addEventListener('click', () => loadVideo(vr.basename));
+
+    if (isAct) {
+      const sz = svg('rect', { x:TL_LABEL_W, y, width:plotW, height:TL_ROW_H,
+                                class:'seek-zone' });
+      sz.addEventListener('click', e => {
+        if (!videoReady) return;
+        const rect = tlSvg.getBoundingClientRect();
+        const t = Math.max(0, (e.clientX - rect.left - TL_LABEL_W) / plotW * tlMaxT);
+        videoEl.currentTime = t;
+      });
+    }
+
+    const shortLabel = vr.trialType === 'practice'
+      ? `[prac] ${vr.label.slice(0, 20)}`
+      : `[${vr.playOrder}] ${vr.label.slice(0, 24)}`;
+    const lbl = svg('text', { x:TL_LABEL_W-6, y:mid+4, 'text-anchor':'end',
+                  class:`row-label${isAct ? ' active' : ''}` }, shortLabel);
+    lbl.addEventListener('click', () => loadVideo(vr.basename));
+
+    const tick = (times, cls, h) => {
+      for (const t of times)
+        svg('line', { x1:toX(t), y1:mid-h/2, x2:toX(t), y2:mid+h/2, class:cls });
+    };
+    if (vr.trialType === 'practice') {
+      tick(vr.prac,   'prac-tick',   TICK_PRAC);
+    } else {
+      tick(vr.fine,   'fine-tick',   TICK_FINE);
+      tick(vr.coarse, 'coarse-tick', TICK_COARSE);
+    }
+  });
+
+  svg('line', { id:'playhead', x1:TL_LABEL_W, y1:0, x2:TL_LABEL_W, y2:svgH-TL_AXIS_H,
+                class:'playhead', style:'display:none' });
+}
+
+function svg(tag, attrs, text) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = document.createElementNS(ns, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  if (text !== undefined) el.textContent = text;
+  tlSvg.appendChild(el);
+  return el;
+}
+
+function updatePlayhead(ct) {
+  const ph = document.getElementById('playhead');
+  if (!ph || !videoRows.length) return;
+  const idx = videoRows.findIndex(v => v.basename === currentBasename);
+  if (idx < 0) { ph.style.display = 'none'; return; }
+
+  const panelW = tlScroll.clientWidth || 400;
+  const svgW   = panelW - 4;
+  const plotW  = svgW - TL_LABEL_W - TL_PAD_R;
+  const x = TL_LABEL_W + (ct / tlMaxT) * plotW;
+
+  ph.setAttribute('x1', x); ph.setAttribute('y1', idx * TL_ROW_H);
+  ph.setAttribute('x2', x); ph.setAttribute('y2', (idx + 1) * TL_ROW_H);
+  ph.style.display = '';
+}
+
+// ═══════════════════════════════════════════════════════
+// Video overlay
+// ═══════════════════════════════════════════════════════
+function syncOverlay() {
+  const vw = videoEl.offsetWidth;
+  const vh = videoEl.offsetHeight;
+  if (!vw || !vh) return;
+  const vRect = videoEl.getBoundingClientRect();
+  const pRect = videoEl.parentElement.getBoundingClientRect();
+  overlayEl.style.left   = (vRect.left - pRect.left) + 'px';
+  overlayEl.style.top    = (vRect.top  - pRect.top)  + 'px';
+  overlayEl.style.width  = vw + 'px';
+  overlayEl.style.height = vh + 'px';
+  overlayEl.width  = vw;
+  overlayEl.height = vh;
+}
+
+function flashAlpha(ct, t) {
+  const e = ct - (t - FLASH_LEAD);
+  if (e < 0 || e > FLASH_DUR) return 0;
+  return Math.min(e / 0.06, 1, (FLASH_DUR - e) / 0.10);
+}
+
+function drawOverlay(ct) {
+  const vr = videoRows.find(v => v.basename === currentBasename);
+  ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+  if (!vr) return;
+  const w = overlayEl.width, h = overlayEl.height;
+  const bh = Math.max(4, Math.round(h * BAR_H_FRAC));
+  for (const t of vr.fine) {
+    const a = flashAlpha(ct, t);
+    if (a > 0) { ctx.fillStyle = `rgba(${FINE_RGB},${(FINE_ALPHA*a).toFixed(2)})`; ctx.fillRect(0, h-bh, w, bh); }
+  }
+  for (const t of vr.coarse) {
+    const a = flashAlpha(ct, t);
+    if (a > 0) { ctx.fillStyle = `rgba(${COARSE_RGB},${(COARSE_ALPHA*a).toFixed(2)})`; ctx.fillRect(0, 0, w, bh); }
+  }
+}
+
+function startAnimLoop() {
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  const loop = () => {
+    if (videoEl.paused || videoEl.ended) { animFrameId = null; return; }
+    drawOverlay(videoEl.currentTime);
+    updatePlayhead(videoEl.currentTime);
+    animFrameId = requestAnimationFrame(loop);
+  };
+  animFrameId = requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════
+// Footer info
+// ═══════════════════════════════════════════════════════
+function updateFooter() {
+  const vr = videoRows.find(v => v.basename === currentBasename);
+  document.getElementById('video-filename').textContent = currentBasename || '—';
+  if (vr) {
+    document.getElementById('boundary-counts').innerHTML =
+      `<span class="fine-count">Fine: ${vr.fine.length}</span> &nbsp;|&nbsp; ` +
+      `<span class="coarse-count">Coarse: ${vr.coarse.length}</span>`;
+    document.getElementById('video-status').textContent = '';
+  } else {
+    document.getElementById('boundary-counts').innerHTML = '';
+    document.getElementById('video-status').textContent = currentBasename
+      ? 'No boundary data for this video in the loaded CSV.'
+      : '';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Frames tab
+// ═══════════════════════════════════════════════════════
+function updateFramesToolbar() {
+  document.getElementById('frames-video-name').textContent =
+    currentBasename || '(no video loaded)';
+}
+
+function captureFrame(vid, t) {
+  return new Promise((resolve, reject) => {
+    const grab = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = THUMB_W;
+      canvas.height = THUMB_H;
+      try {
+        canvas.getContext('2d').drawImage(vid, 0, 0, THUMB_W, THUMB_H);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    if (Math.abs(vid.currentTime - t) < 0.02) {
+      grab();
+      return;
+    }
+    const timeout = setTimeout(() => {
+      vid.removeEventListener('seeked', handler);
+      reject(new Error('seek timeout at ' + t));
+    }, 8000);
+    function handler() { clearTimeout(timeout); grab(); }
+    vid.addEventListener('seeked', handler, { once: true });
+    vid.currentTime = t;
+  });
+}
+
+function applySort() {
+  const grid = document.getElementById('frames-grid');
+  if (!extractedFrames.length) return;
+
+  const sorted = [...extractedFrames];
+  if (framesSortMode === 'gran') {
+    const order = { coarse: 0, fine: 1, practice: 2 };
+    sorted.sort((a, b) => {
+      const d = (order[a.gran] ?? 3) - (order[b.gran] ?? 3);
+      return d !== 0 ? d : a.t - b.t;
+    });
+  } else {
+    sorted.sort((a, b) => a.t - b.t);
+  }
+
+  grid.innerHTML = '';
+  for (const { t, gran, dataURL } of sorted) {
+    const card = document.createElement('div');
+    card.className = `frame-card ${gran}`;
+    card.dataset.t    = t;
+    card.dataset.gran = gran;
+    card.innerHTML = `
+      <div class="frame-thumb"${dataURL ? ` style="background-image:url(${dataURL})"` : ' style="background:#0f172a"'}></div>
+      <div class="frame-label">
+        <span class="gran-badge ${gran}">${gran === 'fine' ? 'Fine' : gran === 'coarse' ? 'Coarse' : 'Prac'}</span>
+        <span class="frame-time">${t.toFixed(3)}s</span>
+      </div>`;
+    card.addEventListener('click', () => {
+      if (videoReady) videoEl.currentTime = parseFloat(card.dataset.t);
+      document.querySelector('.tab-btn[data-tab="viewer"]').click();
+    });
+    grid.appendChild(card);
+  }
+}
+
+document.querySelectorAll('.sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    framesSortMode = btn.dataset.sort;
+    applySort();
+  });
+});
+
+async function runExtraction() {
+  if (isExtracting) return;
+  if (!videoReady) {
+    document.getElementById('extract-progress').textContent = 'Video is not ready yet.';
+    return;
+  }
+  isExtracting = true;
+
+  const vr       = videoRows.find(v => v.basename === currentBasename);
+  const grid     = document.getElementById('frames-grid');
+  const progress = document.getElementById('extract-progress');
+  const btnExt   = document.getElementById('btn-extract');
+
+  // Create a fresh video element each time to avoid stale state
+  const vid = document.createElement('video');
+  vid.muted     = true;
+  vid.preload   = 'auto';
+  vid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
+  document.body.appendChild(vid);
+  vid.src = videoEl.src;
+  try {
+    await new Promise((resolve, reject) => {
+      vid.addEventListener('loadeddata', resolve, { once: true });
+      vid.addEventListener('error',      reject,  { once: true });
+      setTimeout(() => reject(new Error('load timeout')), 15000);
+    });
+  } catch (err) {
+    progress.textContent = 'Failed to load video. Check CORS settings.';
+    document.body.removeChild(vid);
+    isExtracting = false;
+    return;
+  }
+
+  // Collect timestamps sorted by time
+  const items = [];
+  if (vr) {
+    vr.fine.forEach(t   => items.push({ t, gran: 'fine' }));
+    vr.coarse.forEach(t => items.push({ t, gran: 'coarse' }));
+    vr.prac.forEach(t   => items.push({ t, gran: 'practice' }));
+  }
+  items.sort((a, b) => a.t - b.t);
+
+  if (!items.length) {
+    grid.innerHTML = '<div id="frames-empty">No boundary data for this video.</div>';
+    document.body.removeChild(vid);
+    isExtracting = false;
+    return;
+  }
+
+  // Create shimmer placeholders
+  grid.innerHTML = '';
+  extractedFrames  = [];
+  extractionAbort  = false;
+  btnExt.textContent = 'Cancel';
+  btnExt.onclick     = () => { extractionAbort = true; };
+
+  const shimmerCards = items.map(({ t, gran }) => {
+    const card = document.createElement('div');
+    card.className = `frame-card ${gran}`;
+    card.innerHTML = `
+      <div class="frame-thumb loading"></div>
+      <div class="frame-label">
+        <span class="gran-badge ${gran}">${gran === 'fine' ? 'Fine' : gran === 'coarse' ? 'Coarse' : 'Prac'}</span>
+        <span class="frame-time">${t.toFixed(3)}s</span>
+      </div>`;
+    grid.appendChild(card);
+    return card;
+  });
+
+  // Extract frames one by one
+  for (let i = 0; i < items.length; i++) {
+    if (extractionAbort) { progress.textContent = `Stopped at ${i} / ${items.length}.`; break; }
+    progress.textContent = `Extracting ${i + 1} / ${items.length}…`;
+    let dataURL = null;
+    try {
+      dataURL = await captureFrame(vid, items[i].t);
+      const thumb = shimmerCards[i].querySelector('.frame-thumb');
+      thumb.classList.remove('loading');
+      thumb.style.backgroundImage = `url(${dataURL})`;
+    } catch (e) {
+      shimmerCards[i].querySelector('.frame-thumb').classList.remove('loading');
+      if (e instanceof DOMException && e.name === 'SecurityError') {
+        progress.textContent = 'Frame extraction blocked: cross-origin video (GitHub Releases restriction).';
+        extractionAbort = true;
+      }
+    }
+    extractedFrames.push({ ...items[i], dataURL });
+  }
+
+  // Cleanup fresh video element
+  document.body.removeChild(vid);
+  vid.src = '';
+
+  if (!extractionAbort) {
+    progress.textContent = `${extractedFrames.length} frames extracted.`;
+    applySort();
+  }
+  isExtracting       = false;
+  btnExt.textContent = 'Extract Frames';
+  btnExt.onclick     = runExtraction;
+}
+
+document.getElementById('btn-extract').addEventListener('click', runExtraction);
+
+// ═══════════════════════════════════════════════════════
+// CSV input
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-csv').addEventListener('click', () => csvInput.click());
+
+csvInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  participant = ''; orderParam = '';
+  const rows = parseCSV(await file.text());
+  videoRows = extractBoundaries(rows);
+  for (const row of rows) {
+    if (!participant && row['participant']) participant = row['participant'];
+    if (!orderParam  && row['order'])       orderParam  = row['order'];
+  }
+  metaEl.textContent =
+    `${participant ? 'ID: ' + participant : ''}${orderParam ? '  order: ' + orderParam : ''}  (${videoRows.length} videos)`;
+  document.getElementById('btn-csv').classList.add('loaded');
+  renderTimeline();
+  updateFooter();
+
+  // Auto-load the first non-practice video
+  const first = videoRows.find(v => v.trialType !== 'practice') || videoRows[0];
+  if (first) loadVideo(first.basename);
+
+  e.target.value = '';
+});
+
+// ═══════════════════════════════════════════════════════
+// Video events
+// ═══════════════════════════════════════════════════════
+videoEl.addEventListener('loadeddata', () => {
+  videoReady = true;
+  loadingDiv.classList.remove('active');
+  syncOverlay();
+  updatePlayhead(0);
+  document.getElementById('video-status').textContent = '';
+});
+
+videoEl.addEventListener('error', () => {
+  loadingDiv.classList.remove('active');
+  videoReady = false;
+  document.getElementById('video-status').textContent =
+    `Could not load: ${currentBasename} — check VIDEO_BASE_URL`;
+});
+
+videoEl.addEventListener('loadedmetadata', () => { syncOverlay(); updatePlayhead(0); });
+videoEl.addEventListener('play',   startAnimLoop);
+videoEl.addEventListener('pause',  () => {
+  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+  drawOverlay(videoEl.currentTime);
+  updatePlayhead(videoEl.currentTime);
+});
+videoEl.addEventListener('seeked', () => {
+  drawOverlay(videoEl.currentTime);
+  updatePlayhead(videoEl.currentTime);
+});
+videoEl.addEventListener('ended',  () => {
+  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+  ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+});
+
+// ═══════════════════════════════════════════════════════
+// Resize
+// ═══════════════════════════════════════════════════════
+const ro = new ResizeObserver(() => { syncOverlay(); renderTimeline(); });
+ro.observe(document.getElementById('video-wrap'));
+ro.observe(tlScroll);
+</script>
+</body>
+</html>
