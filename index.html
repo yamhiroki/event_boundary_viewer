@@ -778,26 +778,6 @@ async function runExtraction() {
   const progress = document.getElementById('extract-progress');
   const btnExt   = document.getElementById('btn-extract');
 
-  // Create a fresh video element each time to avoid stale state
-  const vid = document.createElement('video');
-  vid.muted     = true;
-  vid.preload   = 'auto';
-  vid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-  document.body.appendChild(vid);
-  vid.src = videoEl.src;
-  try {
-    await new Promise((resolve, reject) => {
-      vid.addEventListener('loadeddata', resolve, { once: true });
-      vid.addEventListener('error',      reject,  { once: true });
-      setTimeout(() => reject(new Error('load timeout')), 15000);
-    });
-  } catch (err) {
-    progress.textContent = 'Failed to load video. Check CORS settings.';
-    document.body.removeChild(vid);
-    isExtracting = false;
-    return;
-  }
-
   // Collect timestamps sorted by time
   const items = [];
   if (vr) {
@@ -809,12 +789,33 @@ async function runExtraction() {
 
   if (!items.length) {
     grid.innerHTML = '<div id="frames-empty">No boundary data for this video.</div>';
-    document.body.removeChild(vid);
     isExtracting = false;
     return;
   }
 
-  // Create shimmer placeholders
+  // Probe first frame using main video — fast check for SecurityError
+  // (GitHub Releases lacks CORS headers, so toDataURL() would throw immediately)
+  const wasPaused = videoEl.paused;
+  if (!wasPaused) videoEl.pause();
+  const savedTime = videoEl.currentTime;
+
+  try {
+    await captureFrame(videoEl, items[0].t);
+  } catch (e) {
+    // Restore playback state
+    videoEl.currentTime = savedTime;
+    if (!wasPaused) videoEl.play().catch(() => {});
+    isExtracting = false;
+    if (e instanceof DOMException && e.name === 'SecurityError') {
+      progress.textContent =
+        'Frame extraction is not available: the video host does not allow cross-origin canvas access.';
+    } else {
+      progress.textContent = `Error: ${e.message}`;
+    }
+    return;
+  }
+
+  // CORS is available — proceed with full extraction using main video
   grid.innerHTML = '';
   extractedFrames  = [];
   extractionAbort  = false;
@@ -834,29 +835,25 @@ async function runExtraction() {
     return card;
   });
 
-  // Extract frames one by one
+  // Extract frames one by one using main video
   for (let i = 0; i < items.length; i++) {
     if (extractionAbort) { progress.textContent = `Stopped at ${i} / ${items.length}.`; break; }
     progress.textContent = `Extracting ${i + 1} / ${items.length}…`;
     let dataURL = null;
     try {
-      dataURL = await captureFrame(vid, items[i].t);
+      dataURL = await captureFrame(videoEl, items[i].t);
       const thumb = shimmerCards[i].querySelector('.frame-thumb');
       thumb.classList.remove('loading');
       thumb.style.backgroundImage = `url(${dataURL})`;
     } catch (e) {
       shimmerCards[i].querySelector('.frame-thumb').classList.remove('loading');
-      if (e instanceof DOMException && e.name === 'SecurityError') {
-        progress.textContent = 'Frame extraction blocked: cross-origin video (GitHub Releases restriction).';
-        extractionAbort = true;
-      }
     }
     extractedFrames.push({ ...items[i], dataURL });
   }
 
-  // Cleanup fresh video element
-  document.body.removeChild(vid);
-  vid.src = '';
+  // Restore video position
+  videoEl.currentTime = savedTime;
+  if (!wasPaused) videoEl.play().catch(() => {});
 
   if (!extractionAbort) {
     progress.textContent = `${extractedFrames.length} frames extracted.`;
