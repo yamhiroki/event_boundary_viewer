@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Event Segmentation Viewer (Web)</title>
+<title>Event Segmentation Viewer</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -44,41 +44,6 @@ header h1 { font-size: 1em; font-weight: bold; color: #f9fafb; white-space: nowr
 .btn.loaded { border-color: #38bdf8; color: #38bdf8; }
 #meta { margin-left: auto; font-size: 0.78em; color: #6b7280; white-space: nowrap; }
 
-/* ── Tab bar ── */
-#tab-bar {
-  display: flex;
-  background: #1f2937;
-  border-bottom: 1px solid #374151;
-  padding: 0 12px;
-  flex-shrink: 0;
-}
-.tab-btn {
-  padding: 7px 16px;
-  border: none;
-  background: transparent;
-  color: #6b7280;
-  cursor: pointer;
-  font-size: 0.85em;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: all 0.15s;
-}
-.tab-btn:hover  { color: #d1d5db; }
-.tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
-
-/* ── Tab panels ── */
-.tab-panel {
-  display: none;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-.tab-panel.active { display: flex; }
-
-/* ══════════════════════════════════
-   Tab 1 — Viewer
-══════════════════════════════════ */
 /* ── Timeline panel ── */
 #timeline-panel {
   flex: 0 0 auto;
@@ -130,21 +95,53 @@ header h1 { font-size: 1em; font-weight: bold; color: #f9fafb; white-space: nowr
   background: #000;
 }
 #overlay { position: absolute; pointer-events: none; }
+
+/* ── Video footer ── */
 #video-footer {
-  padding: 6px 16px;
+  padding: 6px 12px;
   flex-shrink: 0;
   background: #1f2937;
   border-top: 1px solid #374151;
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 36px;
+  gap: 8px;
+  min-height: 40px;
+  flex-wrap: wrap;
 }
-#video-filename  { color: #9ca3af; font-size: 0.82em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#video-filename  { color: #9ca3af; font-size: 0.82em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
 #boundary-counts { font-size: 0.78em; white-space: nowrap; }
-.fine-count      { color: #38bdf8; }
-.coarse-count    { color: #f97316; font-weight: bold; }
-#video-status    { font-size: 0.78em; color: #6b7280; margin-left: auto; }
+.fine-count   { color: #38bdf8; }
+.coarse-count { color: #f97316; font-weight: bold; }
+#video-status { font-size: 0.78em; color: #6b7280; }
+
+/* ── Warp nav buttons ── */
+#warp-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+#warp-nav .sep {
+  width: 1px;
+  height: 18px;
+  background: #374151;
+  margin: 0 4px;
+}
+.warp-btn {
+  padding: 3px 9px;
+  border-radius: 3px;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.78em;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.warp-btn.fine   { border-color: #1e4a6e; color: #7dd3fc; }
+.warp-btn.coarse { border-color: #7c3010; color: #fb923c; }
+.warp-btn.fine:hover   { background: #0c4a6e; border-color: #38bdf8; color: #38bdf8; }
+.warp-btn.coarse:hover { background: #7c2d12; border-color: #f97316; color: #f97316; }
+.warp-btn:disabled { opacity: 0.3; cursor: default; }
 
 /* ── Empty state ── */
 #empty-state {
@@ -187,86 +184,13 @@ header h1 { font-size: 1em; font-weight: bold; color: #f9fafb; white-space: nowr
 .fine-tick   { stroke: #38bdf8; stroke-width: 1.8; stroke-linecap: round; }
 .coarse-tick { stroke: #f97316; stroke-width: 2.5; stroke-linecap: round; }
 .prac-tick   { stroke: #374151; stroke-width: 1.5; stroke-linecap: round; }
+.tick-hit    { fill: transparent; cursor: pointer; }
+.tick-hit:hover + .fine-tick,
+.fine-tick:hover   { stroke: #bae6fd; stroke-width: 2.5; }
+.tick-hit:hover + .coarse-tick,
+.coarse-tick:hover { stroke: #fdba74; stroke-width: 3.5; }
 .playhead    { stroke: #f87171; stroke-width: 1.5; stroke-dasharray: 3,2; pointer-events: none; }
 .seek-zone   { cursor: pointer; fill: transparent; }
-
-/* ══════════════════════════════════
-   Tab 2 — Frames
-══════════════════════════════════ */
-#frames-toolbar {
-  padding: 10px 16px;
-  background: #1f2937;
-  border-bottom: 1px solid #374151;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-#frames-video-name { color: #9ca3af; font-size: 0.85em; }
-#extract-progress  { color: #6b7280; font-size: 0.78em; margin-left: auto; }
-#frames-scroll     { flex: 1; overflow-y: auto; padding: 16px; }
-#frames-grid       { display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; }
-#frames-empty      { color: #4b5563; font-size: 0.85em; padding: 24px 0; }
-
-.frame-card {
-  width: 200px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 2px solid transparent;
-  background: #1f2937;
-  cursor: pointer;
-  transition: transform 0.1s, box-shadow 0.1s;
-  flex-shrink: 0;
-}
-.frame-card:hover { transform: scale(1.03); box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
-.frame-card.fine     { border-color: #38bdf8; }
-.frame-card.coarse   { border-color: #f97316; }
-.frame-card.practice { border-color: #374151; }
-
-.frame-thumb {
-  width: 100%;
-  aspect-ratio: 16/9;
-  background-color: #0f172a;
-  background-size: cover;
-  background-position: center;
-}
-.frame-thumb.loading {
-  background-image: repeating-linear-gradient(
-    90deg, #1e293b 0px, #1e293b 40px, #0f172a 40px, #0f172a 80px
-  );
-  animation: shimmer 1.2s infinite linear;
-  background-size: 160px 100%;
-}
-@keyframes shimmer {
-  from { background-position-x: 0; }
-  to   { background-position-x: 160px; }
-}
-.frame-label {
-  padding: 5px 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.gran-badge { font-size: 0.7em; padding: 1px 6px; border-radius: 3px; font-weight: bold; }
-.gran-badge.fine     { background: #0c4a6e; color: #38bdf8; }
-.gran-badge.coarse   { background: #7c2d12; color: #fed7aa; }
-.gran-badge.practice { background: #374151; color: #9ca3af; }
-.frame-time { font-size: 0.78em; color: #9ca3af; font-family: monospace; }
-/* sort toggle */
-#sort-btns { display: flex; gap: 2px; }
-.sort-btn {
-  padding: 3px 10px;
-  border: 1px solid #374151;
-  background: transparent;
-  color: #6b7280;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 0.78em;
-  transition: all 0.15s;
-}
-.sort-btn:hover  { border-color: #38bdf8; color: #38bdf8; }
-.sort-btn.active { background: #f97316; border-color: #38bdf8; color: #38bdf8; }
 </style>
 </head>
 <body>
@@ -278,73 +202,50 @@ header h1 { font-size: 1em; font-weight: bold; color: #f9fafb; white-space: nowr
   <span id="meta"></span>
 </header>
 
-<!-- Tab bar -->
-<nav id="tab-bar">
-  <button class="tab-btn active" data-tab="viewer">▶ Viewer</button>
-  <button class="tab-btn"        data-tab="frames">⬛ Frames</button>
-</nav>
-
-<!-- Tab 1: Viewer -->
-<div id="tab-viewer" class="tab-panel active">
-  <!-- Timeline -->
-  <div id="timeline-panel">
-    <div id="timeline-header">
-      <h2>Timeline</h2>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-swatch" style="background:#38bdf8"></div>Fine</div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#f97316"></div>Coarse</div>
-        <div class="legend-item"><div class="legend-swatch" style="background:#374151"></div>Practice</div>
-      </div>
-    </div>
-    <div id="timeline-scroll"><svg id="timeline-svg"></svg></div>
-  </div>
-
-  <!-- Video -->
-  <div id="video-panel">
-    <div id="video-wrap">
-      <div id="empty-state">
-        <div style="font-size:2em;">▶</div>
-        <div class="step">① Open CSV — videos load automatically</div>
-      </div>
-      <video id="video" controls preload="metadata"></video>
-      <canvas id="overlay"></canvas>
-      <div id="video-loading">
-        <div class="spinner"></div>
-        <span id="loading-label">Loading video…</span>
-      </div>
-    </div>
-    <div id="video-footer">
-      <span id="video-filename">—</span>
-      <span id="boundary-counts"></span>
-      <span id="video-status"></span>
+<!-- Timeline -->
+<div id="timeline-panel">
+  <div id="timeline-header">
+    <h2>Timeline</h2>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#38bdf8"></div>Fine</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#f97316"></div>Coarse</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#374151"></div>Practice</div>
     </div>
   </div>
+  <div id="timeline-scroll"><svg id="timeline-svg"></svg></div>
 </div>
 
-<!-- Tab 2: Frames -->
-<div id="tab-frames" class="tab-panel">
-  <div id="frames-toolbar">
-    <span id="frames-video-name">—</span>
-    <button class="btn" id="btn-extract">Extract Frames</button>
-    <div id="sort-btns">
-      <button class="sort-btn active" data-sort="time">Time</button>
-      <button class="sort-btn"        data-sort="gran">Coarse → Fine</button>
+<!-- Video -->
+<div id="video-panel">
+  <div id="video-wrap">
+    <div id="empty-state">
+      <div style="font-size:2em;">▶</div>
+      <div class="step">① Open CSV — videos load automatically</div>
     </div>
-    <span id="extract-progress"></span>
+    <video id="video" controls preload="metadata"></video>
+    <canvas id="overlay"></canvas>
+    <div id="video-loading">
+      <div class="spinner"></div>
+      <span id="loading-label">Loading video…</span>
+    </div>
   </div>
-  <div id="frames-scroll">
-    <div id="frames-grid">
-      <div id="frames-empty">Open a CSV, then click "Extract Frames".</div>
+  <div id="video-footer">
+    <span id="video-filename">—</span>
+    <span id="boundary-counts"></span>
+    <span id="video-status"></span>
+    <div id="warp-nav">
+      <button class="warp-btn coarse" id="warp-coarse-prev" title="Previous Coarse boundary">◀ Coarse</button>
+      <button class="warp-btn fine"   id="warp-fine-prev"   title="Previous Fine boundary">◀ Fine</button>
+      <div class="sep"></div>
+      <button class="warp-btn fine"   id="warp-fine-next"   title="Next Fine boundary">Fine ▶</button>
+      <button class="warp-btn coarse" id="warp-coarse-next" title="Next Coarse boundary">Coarse ▶</button>
     </div>
   </div>
 </div>
 
 <script>
 // ═══════════════════════════════════════════════════════
-// VIDEO BASE URL — set this to where your videos are hosted
-// e.g. 'https://username.github.io/repo-name/resources/'
-// or a relative path like '../resources/' if HTML and videos
-// are served from the same GitHub Pages site.
+// VIDEO BASE URL
 // ═══════════════════════════════════════════════════════
 const VIDEO_BASE_URL =
   'https://github.com/yamhiroki/event_boundary_viewer/releases/download/v1.0/';
@@ -367,9 +268,7 @@ const TL_AXIS_H   = 24;
 const TICK_FINE   = 13;
 const TICK_COARSE = 18;
 const TICK_PRAC   = 9;
-
-const THUMB_W = 320;
-const THUMB_H = 180;
+const TICK_HIT_W  = 14;   // clickable area width around each tick
 
 // ═══════════════════════════════════════════════════════
 // State
@@ -380,43 +279,20 @@ let participant     = '';
 let orderParam      = '';
 let animFrameId     = null;
 let tlMaxT          = 60;
-let extractionAbort = false;
-let isExtracting    = false;
-let extractedFrames = [];
-let framesSortMode  = 'time';
-let videoReady      = false;   // true once current video has loadeddata
+let videoReady      = false;
 
 // ═══════════════════════════════════════════════════════
 // DOM refs
 // ═══════════════════════════════════════════════════════
-const csvInput    = document.getElementById('csv-input');
-const videoEl     = document.getElementById('video');
-const overlayEl   = document.getElementById('overlay');
-const tlSvg       = document.getElementById('timeline-svg');
-const tlScroll    = document.getElementById('timeline-scroll');
-const metaEl      = document.getElementById('meta');
-const loadingDiv  = document.getElementById('video-loading');
-const loadingLbl  = document.getElementById('loading-label');
-const ctx         = overlayEl.getContext('2d');
-
-// ═══════════════════════════════════════════════════════
-// Tab switching
-// ═══════════════════════════════════════════════════════
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'viewer') {
-      syncOverlay();
-      renderTimeline();
-    }
-    if (btn.dataset.tab === 'frames') {
-      updateFramesToolbar();
-    }
-  });
-});
+const csvInput   = document.getElementById('csv-input');
+const videoEl    = document.getElementById('video');
+const overlayEl  = document.getElementById('overlay');
+const tlSvg      = document.getElementById('timeline-svg');
+const tlScroll   = document.getElementById('timeline-scroll');
+const metaEl     = document.getElementById('meta');
+const loadingDiv = document.getElementById('video-loading');
+const loadingLbl = document.getElementById('loading-label');
+const ctx        = overlayEl.getContext('2d');
 
 // ═══════════════════════════════════════════════════════
 // CSV parsing
@@ -427,9 +303,8 @@ function parseCSV(text) {
   const headers = splitCSVLine(lines[0]);
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-    const fields = splitCSVLine(line);
+    if (!lines[i].trim()) continue;
+    const fields = splitCSVLine(lines[i]);
     const obj = {};
     headers.forEach((h, j) => { obj[h.trim()] = (fields[j] || '').trim(); });
     rows.push(obj);
@@ -440,8 +315,7 @@ function parseCSV(text) {
 function splitCSVLine(line) {
   const fields = [];
   let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (const ch of line) {
     if (ch === '"') { inQ = !inQ; continue; }
     if (ch === ',' && !inQ) { fields.push(cur); cur = ''; continue; }
     cur += ch;
@@ -465,26 +339,20 @@ function extractBoundaries(rows) {
     const vf   = (row['VideoFile'] || row['videoFile'] || '').trim();
     const base = vf.replace(/\\/g, '/').split('/').pop();
     if (!base) continue;
-
     const t = parseFloat(row['SegmentTime'] || row['segmentTime'] || '');
     if (isNaN(t)) continue;
-
     let gran = (row['granularity'] || '').trim();
     if (!gran) gran = deriveGranularity(row['pass'], row['order']);
-
-    const trialType  = (row['trialType'] || '').trim();
-    const playOrder  = parseInt(row['videoPlayOrder'] || '0', 10);
-    const isPractice = trialType === 'practice';
-
+    const trialType = (row['trialType'] || '').trim();
+    const playOrder = parseInt(row['videoPlayOrder'] || '0', 10);
     if (!map[base]) {
       map[base] = { basename: base, label: base.replace(/\.[^.]+$/, ''),
                     playOrder, trialType, fine: [], coarse: [], prac: [] };
     }
-    if (isPractice)             map[base].prac.push(t);
-    else if (gran === 'fine')   map[base].fine.push(t);
-    else if (gran === 'coarse') map[base].coarse.push(t);
+    if (trialType === 'practice')   map[base].prac.push(t);
+    else if (gran === 'fine')       map[base].fine.push(t);
+    else if (gran === 'coarse')     map[base].coarse.push(t);
   }
-
   return Object.values(map).sort((a, b) => {
     const ap = a.trialType === 'practice', bp = b.trialType === 'practice';
     if (ap !== bp) return ap ? 1 : -1;
@@ -499,21 +367,13 @@ function loadVideo(basename) {
   if (!basename) return;
   currentBasename = basename;
   videoReady = false;
-  isExtracting = false;
-  extractedFrames = [];
-
-  const url = VIDEO_BASE_URL + basename;
   loadingDiv.classList.add('active');
   loadingLbl.textContent = `Loading ${basename}…`;
   document.getElementById('empty-state').style.display = 'none';
-
-  // Setting src triggers load; crossorigin attr is already on the element
-  videoEl.src = url;
+  videoEl.src = VIDEO_BASE_URL + basename;
   videoEl.load();
-
   renderTimeline();
   updateFooter();
-  updateFramesToolbar();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -541,7 +401,6 @@ function renderTimeline() {
   tlSvg.innerHTML = '';
 
   const toX = t => TL_LABEL_W + (t / maxT) * plotW;
-
   const step = maxT <= 90 ? 10 : maxT <= 240 ? 30 : 60;
   for (let t = 0; t <= maxT; t += step) {
     const x = toX(t);
@@ -576,15 +435,35 @@ function renderTimeline() {
                   class:`row-label${isAct ? ' active' : ''}` }, shortLabel);
     lbl.addEventListener('click', () => loadVideo(vr.basename));
 
-    const tick = (times, cls, h) => {
-      for (const t of times)
-        svg('line', { x1:toX(t), y1:mid-h/2, x2:toX(t), y2:mid+h/2, class:cls });
+    // Clickable tick marks — hit area rendered first, tick on top
+    const addTicks = (times, tickCls, h) => {
+      for (const t of times) {
+        const x = toX(t);
+        // Transparent wide hit area
+        const hit = svg('rect', {
+          x: x - TICK_HIT_W / 2, y: mid - h / 2 - 4,
+          width: TICK_HIT_W, height: h + 8,
+          class: 'tick-hit',
+          title: `${t.toFixed(3)}s`
+        });
+        // Visible tick line
+        svg('line', { x1:x, y1:mid-h/2, x2:x, y2:mid+h/2, class:tickCls,
+                      style:'pointer-events:none' });
+        if (isAct) {
+          hit.style.cursor = 'crosshair';
+          hit.addEventListener('click', e => {
+            e.stopPropagation();
+            if (videoReady) videoEl.currentTime = t;
+          });
+        }
+      }
     };
+
     if (vr.trialType === 'practice') {
-      tick(vr.prac,   'prac-tick',   TICK_PRAC);
+      addTicks(vr.prac,   'prac-tick',   TICK_PRAC);
     } else {
-      tick(vr.fine,   'fine-tick',   TICK_FINE);
-      tick(vr.coarse, 'coarse-tick', TICK_COARSE);
+      addTicks(vr.fine,   'fine-tick',   TICK_FINE);
+      addTicks(vr.coarse, 'coarse-tick', TICK_COARSE);
     }
   });
 
@@ -606,23 +485,51 @@ function updatePlayhead(ct) {
   if (!ph || !videoRows.length) return;
   const idx = videoRows.findIndex(v => v.basename === currentBasename);
   if (idx < 0) { ph.style.display = 'none'; return; }
-
   const panelW = tlScroll.clientWidth || 400;
   const svgW   = panelW - 4;
   const plotW  = svgW - TL_LABEL_W - TL_PAD_R;
   const x = TL_LABEL_W + (ct / tlMaxT) * plotW;
-
   ph.setAttribute('x1', x); ph.setAttribute('y1', idx * TL_ROW_H);
   ph.setAttribute('x2', x); ph.setAttribute('y2', (idx + 1) * TL_ROW_H);
   ph.style.display = '';
 }
 
 // ═══════════════════════════════════════════════════════
+// Warp navigation
+// ═══════════════════════════════════════════════════════
+function warpTo(gran, dir) {
+  if (!videoReady) return;
+  const vr = videoRows.find(v => v.basename === currentBasename);
+  if (!vr) return;
+  const times = (gran === 'fine' ? vr.fine : vr.coarse).slice().sort((a, b) => a - b);
+  if (!times.length) return;
+  const ct = videoEl.currentTime;
+  const EPS = 0.05;
+  let target = null;
+  if (dir === 'prev') {
+    // Largest t < ct - EPS
+    for (let i = times.length - 1; i >= 0; i--) {
+      if (times[i] < ct - EPS) { target = times[i]; break; }
+    }
+  } else {
+    // Smallest t > ct + EPS
+    for (let i = 0; i < times.length; i++) {
+      if (times[i] > ct + EPS) { target = times[i]; break; }
+    }
+  }
+  if (target !== null) videoEl.currentTime = target;
+}
+
+document.getElementById('warp-fine-prev')  .addEventListener('click', () => warpTo('fine',   'prev'));
+document.getElementById('warp-fine-next')  .addEventListener('click', () => warpTo('fine',   'next'));
+document.getElementById('warp-coarse-prev').addEventListener('click', () => warpTo('coarse', 'prev'));
+document.getElementById('warp-coarse-next').addEventListener('click', () => warpTo('coarse', 'next'));
+
+// ═══════════════════════════════════════════════════════
 // Video overlay
 // ═══════════════════════════════════════════════════════
 function syncOverlay() {
-  const vw = videoEl.offsetWidth;
-  const vh = videoEl.offsetHeight;
+  const vw = videoEl.offsetWidth, vh = videoEl.offsetHeight;
   if (!vw || !vh) return;
   const vRect = videoEl.getBoundingClientRect();
   const pRect = videoEl.parentElement.getBoundingClientRect();
@@ -675,190 +582,15 @@ function updateFooter() {
   document.getElementById('video-filename').textContent = currentBasename || '—';
   if (vr) {
     document.getElementById('boundary-counts').innerHTML =
-      `<span class="fine-count">Fine: ${vr.fine.length}</span> &nbsp;|&nbsp; ` +
+      `<span class="fine-count">Fine: ${vr.fine.length}</span>&nbsp;|&nbsp;` +
       `<span class="coarse-count">Coarse: ${vr.coarse.length}</span>`;
     document.getElementById('video-status').textContent = '';
   } else {
     document.getElementById('boundary-counts').innerHTML = '';
     document.getElementById('video-status').textContent = currentBasename
-      ? 'No boundary data for this video in the loaded CSV.'
-      : '';
+      ? 'No boundary data for this video.' : '';
   }
 }
-
-// ═══════════════════════════════════════════════════════
-// Frames tab
-// ═══════════════════════════════════════════════════════
-function updateFramesToolbar() {
-  document.getElementById('frames-video-name').textContent =
-    currentBasename || '(no video loaded)';
-}
-
-function captureFrame(vid, t) {
-  return new Promise((resolve, reject) => {
-    const grab = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width  = THUMB_W;
-      canvas.height = THUMB_H;
-      try {
-        canvas.getContext('2d').drawImage(vid, 0, 0, THUMB_W, THUMB_H);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      } catch (e) {
-        reject(e);
-      }
-    };
-    if (Math.abs(vid.currentTime - t) < 0.02) {
-      grab();
-      return;
-    }
-    const timeout = setTimeout(() => {
-      vid.removeEventListener('seeked', handler);
-      reject(new Error('seek timeout at ' + t));
-    }, 8000);
-    function handler() { clearTimeout(timeout); grab(); }
-    vid.addEventListener('seeked', handler, { once: true });
-    vid.currentTime = t;
-  });
-}
-
-function applySort() {
-  const grid = document.getElementById('frames-grid');
-  if (!extractedFrames.length) return;
-
-  const sorted = [...extractedFrames];
-  if (framesSortMode === 'gran') {
-    const order = { coarse: 0, fine: 1, practice: 2 };
-    sorted.sort((a, b) => {
-      const d = (order[a.gran] ?? 3) - (order[b.gran] ?? 3);
-      return d !== 0 ? d : a.t - b.t;
-    });
-  } else {
-    sorted.sort((a, b) => a.t - b.t);
-  }
-
-  grid.innerHTML = '';
-  for (const { t, gran, dataURL } of sorted) {
-    const card = document.createElement('div');
-    card.className = `frame-card ${gran}`;
-    card.dataset.t    = t;
-    card.dataset.gran = gran;
-    card.innerHTML = `
-      <div class="frame-thumb"${dataURL ? ` style="background-image:url(${dataURL})"` : ' style="background:#0f172a"'}></div>
-      <div class="frame-label">
-        <span class="gran-badge ${gran}">${gran === 'fine' ? 'Fine' : gran === 'coarse' ? 'Coarse' : 'Prac'}</span>
-        <span class="frame-time">${t.toFixed(3)}s</span>
-      </div>`;
-    card.addEventListener('click', () => {
-      if (videoReady) videoEl.currentTime = parseFloat(card.dataset.t);
-      document.querySelector('.tab-btn[data-tab="viewer"]').click();
-    });
-    grid.appendChild(card);
-  }
-}
-
-document.querySelectorAll('.sort-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    framesSortMode = btn.dataset.sort;
-    applySort();
-  });
-});
-
-async function runExtraction() {
-  if (isExtracting) return;
-  if (!videoReady) {
-    document.getElementById('extract-progress').textContent = 'Video is not ready yet.';
-    return;
-  }
-
-  // Pre-check: cross-origin video cannot be drawn to canvas (browser security)
-  try {
-    const videoOrigin = new URL(videoEl.src).origin;
-    if (videoOrigin !== window.location.origin) {
-      document.getElementById('extract-progress').textContent =
-        'Frame extraction is not available for remotely hosted videos. Use the local viewer.html instead.';
-      return;
-    }
-  } catch (e) { /* relative URL — same origin, continue */ }
-
-  isExtracting = true;
-
-  const vr       = videoRows.find(v => v.basename === currentBasename);
-  const grid     = document.getElementById('frames-grid');
-  const progress = document.getElementById('extract-progress');
-  const btnExt   = document.getElementById('btn-extract');
-
-  // Collect timestamps sorted by time
-  const items = [];
-  if (vr) {
-    vr.fine.forEach(t   => items.push({ t, gran: 'fine' }));
-    vr.coarse.forEach(t => items.push({ t, gran: 'coarse' }));
-    vr.prac.forEach(t   => items.push({ t, gran: 'practice' }));
-  }
-  items.sort((a, b) => a.t - b.t);
-
-  if (!items.length) {
-    grid.innerHTML = '<div id="frames-empty">No boundary data for this video.</div>';
-    isExtracting = false;
-    return;
-  }
-
-  // Pause main video during extraction, restore afterward
-  const wasPaused = videoEl.paused;
-  if (!wasPaused) videoEl.pause();
-  const savedTime = videoEl.currentTime;
-
-  // CORS is available (same origin) — proceed with full extraction using main video
-  grid.innerHTML = '';
-  extractedFrames  = [];
-  extractionAbort  = false;
-  btnExt.textContent = 'Cancel';
-  btnExt.onclick     = () => { extractionAbort = true; };
-
-  const shimmerCards = items.map(({ t, gran }) => {
-    const card = document.createElement('div');
-    card.className = `frame-card ${gran}`;
-    card.innerHTML = `
-      <div class="frame-thumb loading"></div>
-      <div class="frame-label">
-        <span class="gran-badge ${gran}">${gran === 'fine' ? 'Fine' : gran === 'coarse' ? 'Coarse' : 'Prac'}</span>
-        <span class="frame-time">${t.toFixed(3)}s</span>
-      </div>`;
-    grid.appendChild(card);
-    return card;
-  });
-
-  // Extract frames one by one using main video
-  for (let i = 0; i < items.length; i++) {
-    if (extractionAbort) { progress.textContent = `Stopped at ${i} / ${items.length}.`; break; }
-    progress.textContent = `Extracting ${i + 1} / ${items.length}…`;
-    let dataURL = null;
-    try {
-      dataURL = await captureFrame(videoEl, items[i].t);
-      const thumb = shimmerCards[i].querySelector('.frame-thumb');
-      thumb.classList.remove('loading');
-      thumb.style.backgroundImage = `url(${dataURL})`;
-    } catch (e) {
-      shimmerCards[i].querySelector('.frame-thumb').classList.remove('loading');
-    }
-    extractedFrames.push({ ...items[i], dataURL });
-  }
-
-  // Restore video position
-  videoEl.currentTime = savedTime;
-  if (!wasPaused) videoEl.play().catch(() => {});
-
-  if (!extractionAbort) {
-    progress.textContent = `${extractedFrames.length} frames extracted.`;
-    applySort();
-  }
-  isExtracting       = false;
-  btnExt.textContent = 'Extract Frames';
-  btnExt.onclick     = runExtraction;
-}
-
-document.getElementById('btn-extract').addEventListener('click', runExtraction);
 
 // ═══════════════════════════════════════════════════════
 // CSV input
@@ -880,11 +612,9 @@ csvInput.addEventListener('change', async e => {
   document.getElementById('btn-csv').classList.add('loaded');
   renderTimeline();
   updateFooter();
-
-  // Auto-load the first non-practice video
+  // Auto-load first non-practice video
   const first = videoRows.find(v => v.trialType !== 'practice') || videoRows[0];
   if (first) loadVideo(first.basename);
-
   e.target.value = '';
 });
 
@@ -898,14 +628,12 @@ videoEl.addEventListener('loadeddata', () => {
   updatePlayhead(0);
   document.getElementById('video-status').textContent = '';
 });
-
 videoEl.addEventListener('error', () => {
   loadingDiv.classList.remove('active');
   videoReady = false;
   document.getElementById('video-status').textContent =
-    `Could not load: ${currentBasename} — check VIDEO_BASE_URL`;
+    `Could not load: ${currentBasename}`;
 });
-
 videoEl.addEventListener('loadedmetadata', () => { syncOverlay(); updatePlayhead(0); });
 videoEl.addEventListener('play',   startAnimLoop);
 videoEl.addEventListener('pause',  () => {
